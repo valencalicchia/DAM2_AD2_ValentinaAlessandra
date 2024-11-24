@@ -1,0 +1,11 @@
+package helpers;
+
+public class ReservaHelper{
+
+	public static String archivo_reservas = "";
+	
+	public ReservaHelper(String archivo_reservas) {
+		ReservaHelper.archivo_reservas = archivo_reservas;
+	}
+
+}

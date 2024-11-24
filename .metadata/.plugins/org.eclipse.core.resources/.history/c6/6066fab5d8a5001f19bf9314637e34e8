@@ -1,0 +1,15 @@
+package helpers;
+
+
+
+public class ClienteHelper  {
+	
+	public static String archivo_clientes = "";
+	
+	public ClienteHelper(String archivo_clientes) {
+		ClienteHelper.archivo_clientes = archivo_clientes;
+	}
+
+
+	
+}

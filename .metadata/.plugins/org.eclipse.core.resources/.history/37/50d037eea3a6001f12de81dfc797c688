@@ -1,0 +1,457 @@
+import java.io.EOFException;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Scanner;
+
+import datos.Reserva;
+import datos.Viaje;
+
+public class Main_CalicchiaValentinaActualiza {
+	
+	static String VIAJES_FILE = "Viajes.dat";
+	static String CLIENTES_FILE = "Clientes.dat";
+	static String RESERVAS_FILE = "Reservas.dat";
+	
+	static Scanner teclado = new Scanner(System.in);
+	
+	public static void main(String[] args)  {
+		
+		System.out.println(" QUE NO SE ME OLVIDE Crear archivo .jar Actualizar.jar");
+		
+		try {
+			actualizarViajeros();
+			
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	}
+	
+	
+/*
+1) [1 punto] Actualizar en el fichero Viajes.dat:
+• El campo viajeros para que contenga el nº de viajeros que hacen el viaje. Este campo
+será igual a la suma de las plazas reservadas en el viaje correspondiente.*/
+
+
+	public static void actualizarViajeros() throws IOException {
+	    ObjectInputStream reservasInput = new ObjectInputStream(new FileInputStream(RESERVAS_FILE));
+	    Map<Integer, Integer> plazasPorViaje = new HashMap<>();
+
+	    try {
+	        while (true) {
+	            Reserva reserva = (Reserva) reservasInput.readObject();
+	            plazasPorViaje.merge(reserva.getIdviaje(), reserva.getPlazas(), Integer::sum);
+	        }
+	        
+	    } catch (EOFException e) {
+	        // Fin del fichero
+	    } catch (ClassNotFoundException e) {
+	        System.err.println("Error al leer un registro de reservas: " + e.getMessage());
+	    } finally {
+	        reservasInput.close();
+	    }
+	    
+        for (Map.Entry<Integer, Integer> entry : plazasPorViaje.entrySet()) {
+            System.out.printf("ID del viaje: %d, Plazas reservadas: %d%n", entry.getKey(), entry.getValue());
+        }
+
+        List<Viaje> viajesRegistrados = buscarViajes();
+        
+	    RandomAccessFile viajesFile = new RandomAccessFile(VIAJES_FILE, "rw");
+
+	    while (viajesFile.getFilePointer() < viajesFile.length()) {
+	        long pos = viajesFile.getFilePointer(); // Guardar posición inicial del registro
+	        int idViaje = viajesFile.readInt();
+	        
+
+	        
+	        if (idViaje == 0 || !existeViaje(viajesRegistrados, idViaje)) {
+				continue;
+			}
+	        
+	        System.out.println("----------------------------------------");
+	        System.out.println("ID:"+idViaje);
+	        // Leer descripción (32 bytes)
+	        byte[] descBytes = new byte[64];
+	        viajesFile.readFully(descBytes);
+	        String descripcion = new String(descBytes).trim();
+	        System.out.println("DESC:"+descripcion);
+
+	        // Leer fecha como campo fijo (10 bytes)
+	        byte[] fechaBytes = new byte[20];
+	        viajesFile.readFully(fechaBytes);
+	        String fechasalida = new String(fechaBytes, StandardCharsets.UTF_8).trim();
+	        System.out.println("FSAL:"+fechasalida);
+	        
+	        // Leer campos restantes
+	        double pvp = viajesFile.readDouble();
+	        int dias = viajesFile.readInt();
+
+	        System.out.println("PVP:"+pvp);
+	        System.out.println("DIAS:"+dias);
+	        // Calcular y escribir el número de viajeros
+	        int nuevosViajeros = plazasPorViaje.getOrDefault(idViaje, 0);
+	        System.out.println("VIAJEROS:"+ nuevosViajeros);
+	        viajesFile.writeInt(nuevosViajeros);
+	        
+
+	        // Saltar al siguiente registro
+	        viajesFile.seek(pos + 154); // Avanzar al siguiente registro
+	    }
+
+	    viajesFile.close();
+	}
+	
+	public static boolean existeViaje(List<Viaje> viajesRegistrados, int idViaje) {
+        for (Viaje viaje : viajesRegistrados) {
+            if (viaje.getId() == idViaje) {
+                return true;// El viaje con el id dado existe
+            }
+        }
+        return false;
+	}
+	
+	
+	public static List<Viaje> buscarViajes() throws IOException {
+		List<Viaje> viajes = new ArrayList<>();
+		RandomAccessFile raf = new RandomAccessFile(VIAJES_FILE, "r");
+			while (raf.getFilePointer() < raf.length()) {
+
+				int id = raf.readInt();
+				if (id == 0) {
+					continue;
+				}
+
+				System.out.println("----------------------------------------");
+				System.out.println("ID:"+id);
+				
+				byte[] descripcionBytes = new byte[32];
+				raf.readFully(descripcionBytes);
+				String descripcion = new String(descripcionBytes, StandardCharsets.UTF_8).trim();
+				System.out.println("DESC:"+descripcion);
+				
+				
+				byte[] fechaSalidaBytes = new byte[10];
+				raf.readFully(fechaSalidaBytes);
+				String fechaSalida = new String(fechaSalidaBytes, StandardCharsets.UTF_8).trim();
+				System.out.println("FSAL:"+fechaSalida);
+				
+				
+				double pvp = raf.readDouble();
+				int dias = raf.readInt();
+		        System.out.println("PVP:"+pvp);
+		        System.out.println("DIAS:"+dias);
+				
+				int viajeros = raf.readInt();
+				System.out.println("VIAJEROS:"+ viajeros);
+				Viaje viaje = new Viaje(id, descripcion, fechaSalida, pvp, dias, viajeros);
+				viajes.add(viaje);
+			}
+		
+		return viajes;
+	}
+
+
+/*2) [2 puntos] Actualizar en el fichero Clientes.dat:
+• El campo viajescontratados para que almacene el nº de viajes contratados por el
+cliente. Cada registro en el fichero de reservas es un viaje contratado.
+• El campo importetotal debe almacenar la suma de lo que valen las reservas que ha
+realizado el cliente. El importe de cada reserva es igual a la multiplicación del pvp del viaje
+por el número de plazas.^*/
+	
+	public static void actualizarClientes() {
+		//solo
+	}
+
+/*3) [0,75 puntos] Una vez actualizado el fichero de viajes se mostrará el siguiente listado con el
+campo número de viajeros actualizado (listado secuencial del fichero aleatorio):
+==========================================================
+ID DESCRIPCION FEC SALIDA VIAJEROS
+=== =============================== ========== ========
+14 Alemania Oeste 01/08/2025 9
+16 China Gran Muralla 25/09/2025 12
+18 Croacia, Perla del Adriático 01/08/2025 0
+20 Crucero por el mar Mediterráneo 01/08/2025 9
+22 Cuba y Miami 15/09/2025 2
+24 La Toscana 01/09/2025 19
+26 Moscu San Petersburgo 10/08/2025 0
+28 Noruega Mágica 20/08/2025 0
+30 Paises Bajos 10/08/2025 0
+32 Praga, Viena, Budapest 20/08/2025 0
+34 Costa Brava 01/09/2025 0
+35 Costa de Almeria 15/09/2025 0
+36 Extremadura al completo 25/09/2025 0
+37 Galicia Costa da Morte 10/08/2025 7
+38 Huelva 20/08/2025 3
+39 Oropesa del Mar con balneario 01/09/2025 0
+40 Zaragoza y Teruel 10/08/2025 0
+45 Paris romántico 01/08/2025 0
+*/
+	
+	public static void listadoViajes() throws IOException {
+
+		String resultado = "==========================================================\n"
+			    		 + "ID 		DESCRIPCION 	  FEC SALIDA 	VIAJEROS\n"
+			    	     + "===== =========================== =========== ===========\n";
+		
+		RandomAccessFile viajesFile = new RandomAccessFile(VIAJES_FILE, "r");
+	
+		System.out.println(resultado);
+		char desc[] = new char[32], aux; 
+		char fsalida[] = new char[32], aux2; 
+		int id, viajeros;
+		String descripcion, fechaSalida;
+			    
+	    int pos = 0;
+        
+	    while (viajesFile.getFilePointer() < viajesFile.length()) {
+ 	   		viajesFile.seek(pos);
+ 	   		id=viajesFile.readInt();   	  
+ 	   	System.out.println("ID:"+id);
+		       for (int i = 0; i < desc.length; i++) {
+		         aux = viajesFile.readChar(); 
+		         desc[i] = aux;    
+		        }   
+		       
+		       descripcion= new String(desc);
+		       System.out.println("Desc:" + descripcion);
+		       for (int i = 0; i < fsalida.length; i++) {
+			         aux2 = viajesFile.readChar(); 
+			         fsalida[i] = aux2;    
+			   }     
+		      
+			    fechaSalida= new String(fsalida);
+		        System.out.println("Fecha:" + fechaSalida);
+		        viajesFile.readDouble(); // skip PVP
+		        viajesFile.readInt(); // skip dias
+		        viajeros = viajesFile.readInt();
+
+		        System.out.println("Viajeros:" + viajeros);
+		        resultado = resultado + "/r/n" + String.format("%-3d %-28s %-10s %-8d\n", id, descripcion, fechaSalida, viajeros);
+		        pos= pos + 66; 
+		        
+	   } // fin for
+        
+        
+
+        viajesFile.close();
+		
+		resultado = resultado + "==========================================================";
+		
+	    System.out.println(resultado);
+	}
+
+/*4) [1,5 puntos] A continuación se debe realizar un proceso repetitivo en el que se introduzca el
+identificador del viaje y se muestre su nombre, el número de viajeros y los clientes que han
+reservado ese viaje. El proceso finalizará cuando el identificador sea 0. Si el viaje no existe se
+debe mostrar un mensaje indicándolo. Si el viaje no tiene reservas se debe mostrar un
+mensaje indicándolo. Se debe mostrar el número de clientes que ha reservado ese viaje.
+Ejemplo de salida:
+=================================
+Introduce id del viaje: 38
+Huelva, Viajeros: 3
+=================================
+ID NOMBRE PLAZAS
+=== ==================== ======
+ 5 Julio Reyes 3
+ Número de clientes: 1
+=================================
+ACCESO A DATOS – Tarea Tema 2
+3
+Introduce id del viaje: 24
+La Toscana, Viajeros: 19
+=================================
+ID NOMBRE PLAZAS
+=== ==================== ======
+ 2 Raquel Martinez 2
+ 1 Alicia Sanz 2
+11 Fernando Alia 5
+ 4 Dora Suela 1
+ 5 Julio Reyes 2
+10 Maria Sanz 1
+15 Pedro Martin 3
+12 Daniel Sanchez 2
+18 Maria Jose Perez 1
+ Número de clientes: 9
+=================================
+Introduce id del viaje: 99
+NO EXISTE EL ID DE VIAJE
+ =================================
+ Introduce id del viaje: 40
+NO HAY RESERVAS
+ =================================
+Introduce id del viaje: 0*/
+	
+	public static void mostrarViaje() {
+		
+		int idSolicitado = 0;
+		int total = 0;
+		
+		do { 
+			
+			System.out.println("Introduce id del viaje:");
+			idSolicitado = teclado.nextInt(); 
+			
+			//busca la info del viaje
+			
+				
+			
+			//si no existe el id viaje
+			System.out.println("NO EXISTE EL ID DE VIAJE");
+			
+			//si no existe el id viaje
+			System.out.println("NO HAY RESERVAS");
+
+			
+			//si existe:
+			String clientes = "===============================\n"
+				    		+ "ID 		NOMBRE 			PLAZAS\n"
+				    	    + "=== ==================== ======\n";
+			
+			//bucle para recoger clientes
+			
+			clientes = clientes + "Número de clientes: " + total + "\n"
+								+ "===============================\n";
+			
+		    
+		}
+			while(idSolicitado!=0);
+	}
+
+/*5) [2,75 puntos] Eliminar clientes del fichero aleatorio. Se pedirá por teclado el ID del cliente a
+eliminar, si no ha contratado viajes se elimina del fichero, se realizará un borrado lógico en el
+que marcarás con -1 los campos numéricos menos el identificador, al nombre del cliente le
+damos el valor de “*eliminado*”. Y si ha contratado viajes se debe mostrar la siguiente
+información y no se eliminará. Al finalizar se debe hacer un listado secuencial del fichero
+aleatorio, se deben mostrar todos los registros incluso los eliminados. Si el ID a eliminar no
+existe se debe mostrar mensaje indicándolo. Si ha sido eliminado también se mostrará
+mensaje indicándolo. Ejemplo de salida de todo el proceso:
+===================================================================
+Introduce id de cliente a eliminar: 1
+Alicia Sanz, Viajes contratados: 4
+===================================================================
+ID DESCRIPCION FEC SALIDA PVP PLAZAS
+=== =============================== ========== ========= ======
+16 China Gran Muralla 25/09/2020 2.100,00 2
+20 Crucero por el mar Mediterráneo 01/08/2020 1.340,00 2
+37 Galicia Costa da Morte 10/08/2020 1.100,00 3
+24 La Toscana 01/09/2020 800,00 2
+ Importe total : 11.780,00
+===================================================================
+Introduce id de cliente a eliminar: 321
+NO EXISTE EL ID DE CLIENTE
+===================================================================
+Introduce id de cliente a eliminar: 33
+NO HA CONTRATADO NINGÚN VIAJE - eliminar
+Cliente: 33, eliminado.
+===================================================================
+Introduce id de cliente a eliminar: 4
+Dora Suela, Viajes contratados: 3
+===================================================================
+ID DESCRIPCION FEC SALIDA PVP PLAZAS
+=== =============================== ========== ========= ======
+16 China Gran Muralla 25/09/2020 2.100,00 4
+20 Crucero por el mar Mediterráneo 01/08/2020 1.340,00 1
+ACCESO A DATOS – Tarea Tema 2
+4
+24 La Toscana 01/09/2020 800,00 1
+ Importe total : 10.540,00
+===================================================================
+Introduce id de cliente a eliminar: 19
+NO HA CONTRATADO NINGÚN VIAJE - eliminar
+Cliente: 19, eliminado.
+===================================================================
+Introduce id de cliente a eliminar: 19
+EL CLIENTE HA SIDO ELIMINADO.
+===================================================================
+Introduce id de cliente a eliminar: 0
+==================================================
+LISTADO DE LOS CLIENTES
+==================================================
+ID: 1, Nombre: Alicia Sanz,
+Viajes Contratados: 4, Importe: 11780,00
+ID: 2, Nombre: Raquel Martinez,
+Viajes Contratados: 4, Importe: 10340,00
+ID: 4, Nombre: Dora Suela,
+Viajes Contratados: 3, Importe: 10540,00
+ID: 5, Nombre: Julio Reyes,
+Viajes Contratados: 5, Importe: 12020,00
+ID: 10, Nombre: Maria Sanz,
+Viajes Contratados: 4, Importe: 9100,00
+ID: 11, Nombre: Fernando Alia,
+Viajes Contratados: 2, Importe: 6680,00
+ID: 12, Nombre: Daniel Sanchez,
+Viajes Contratados: 2, Importe: 3100,00
+ID: 15, Nombre: Pedro Martin,
+Viajes Contratados: 3, Importe: 7500,00
+ID: 18, Nombre: Maria Jose Perez,
+Viajes Contratados: 2, Importe: 6800,00
+ID: 19, Nombre: *eliminado*,
+Viajes Contratados: -1, Importe: -1,00
+ID: 22, Nombre: Maria Sanchez,
+Viajes Contratados: 0, Importe: 0,00
+ID: 33, Nombre: *eliminado*,
+Viajes Contratados: -1, Importe: -1,00*/
+	
+	public static void eliminarCliente() {
+		int idSolicitado = 0;
+		int total = 0;
+		
+		do { 
+			
+			System.out.println("Introduce id de cliente a eliminar:");
+			idSolicitado = teclado.nextInt(); 
+			
+			//busca la info del viaje
+			
+				
+			
+			//si no existe el id viaje
+			System.out.println("NO EXISTE EL ID DE CLIENTE");
+			
+			//si no tiene reservas solo se elimina
+			System.out.println("NO HA CONTRATADO NINGÚN VIAJE - eliminar");
+			//Proceso de eliminar
+			System.out.println("Cliente: " + idSolicitado + ", eliminado.");
+			
+			
+			//si existe:
+			String clientes = "===============================================================\n"
+				    		+ "ID 			DESCRIPCION 			FEC SALIDA 	PVP 	PLAZAS\n"
+				    	    + "=== =============================== ========== ========= ======\n";
+			
+			//bucle para recoger clientes
+			
+			clientes = clientes + " Importe total : " + total + "\n"
+								+ "===================================================================\n";
+			
+		    
+		}
+			while(idSolicitado!=0);
+		
+		mostrarClientes();
+	}
+	
+	public static void mostrarClientes() {
+		
+		String resultado = "==================================================\\n"
+						 + "LISTADO DE LOS CLIENTES\r\n"
+						 + "==================================================";
+		
+		//bucle clientes
+		
+		System.out.println(resultado);
+	}
+	
+}

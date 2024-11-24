@@ -1,0 +1,116 @@
+package helpers;
+
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Optional;
+
+import datos.Viaje;
+
+public class ViajeHelper  {
+	
+	public static String archivo_viajes = "";
+	
+	public ViajeHelper(String archivo_viajes) {
+		ViajeHelper.archivo_viajes = archivo_viajes;
+	}
+
+	public static Optional<Viaje> buscarPorId(int id) throws IOException {
+		RandomAccessFile raf = new RandomAccessFile(archivo_viajes, "r");
+			while (raf.getFilePointer() < raf.length()) {
+				int idArchivo = raf.readInt();
+
+				if (idArchivo == id) {
+					byte[] descripcionBytes = new byte[64];
+					raf.readFully(descripcionBytes);
+					String descripcion = new String(descripcionBytes, StandardCharsets.UTF_8).trim();
+
+					byte[] fechaSalidaBytes = new byte[20];
+					raf.readFully(fechaSalidaBytes);
+					String fechaSalida = new String(fechaSalidaBytes, StandardCharsets.UTF_8).trim();
+
+					double pvp = raf.readDouble();
+					int dias = raf.readInt();
+					int viajeros = raf.readInt();
+					Viaje viaje = new Viaje(id, descripcion, fechaSalida, pvp, dias, viajeros);
+					return Optional.of(viaje);
+				} else {
+					raf.skipBytes(64 + 20 + 8 + 4 + 4); // Saltar los otros campos (descr, fecha, pvp, dias, viajeros)
+				}
+			}
+		
+		return Optional.empty();
+	}
+
+	public static boolean actualizar(Viaje entity) throws IOException {
+		if (entity == null) {
+			return false;
+		}
+
+		Optional<Viaje> viajeOptional = buscarPorId(entity.getId());
+		if (viajeOptional.isEmpty()) {
+			return false;
+		}
+
+		Viaje viajeBBDD = viajeOptional.get();
+
+		RandomAccessFile raf = new RandomAccessFile(archivo_viajes, "rw");
+			while (raf.getFilePointer() < raf.length()) {
+				int id = raf.readInt();
+				if (id == viajeBBDD.getId()) {
+					long posInicio = raf.getFilePointer();
+
+					// Descripción
+					byte[] descripcionBytes = new byte[64];
+					raf.readFully(descripcionBytes);
+					String descripcionActual = new String(descripcionBytes, StandardCharsets.UTF_8).trim();
+					if (!descripcionActual.equals(entity.getDescripcion())) {
+						raf.seek(posInicio);
+						byte[] nuevaDescripcion = Arrays
+								.copyOf(entity.getDescripcion().getBytes(StandardCharsets.UTF_8), 64);
+						raf.write(nuevaDescripcion);
+					}
+
+					// Fecha de salida
+					byte[] fechaSalidaBytes = new byte[20];
+					raf.readFully(fechaSalidaBytes);
+					String fechaSalidaActual = new String(fechaSalidaBytes, StandardCharsets.UTF_8).trim();
+					if (!fechaSalidaActual.equals(entity.getFechasalida())) {
+						raf.seek(raf.getFilePointer() - 20);
+						byte[] nuevaFechaSalida = Arrays
+								.copyOf(entity.getFechasalida().getBytes(StandardCharsets.UTF_8), 20);
+						raf.write(nuevaFechaSalida);
+					}
+
+					// Precio
+					double pvp = raf.readDouble();
+					if (pvp != entity.getPvp()) {
+						raf.seek(raf.getFilePointer() - 8);
+						raf.writeDouble(entity.getPvp());
+					}
+
+					// Días
+					int dias = raf.readInt();
+					if (dias != entity.getDias()) {
+						raf.seek(raf.getFilePointer() - 4);
+						raf.writeInt(entity.getDias());
+					}
+
+					// Viajeros
+					int viajeros = raf.readInt();
+					if (viajeros != entity.getViajeros()) {
+						raf.seek(raf.getFilePointer() - 4);
+						raf.writeInt(entity.getViajeros());
+					}
+
+					return true;
+				} else {
+					raf.skipBytes(64 + 20 + 8 + 4 + 4); // Saltar al siguiente registro
+				}
+			}
+		return false;
+	}
+}
+
+

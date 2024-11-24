@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<section name="Workbench">
+	<item key="hasShownOverlayPopupBefore" value="true"/>
+	<item key="replaceBarOpen" value="false"/>
+	<list key="searchhistory">
+		<item value="consultarReservas"/>
+	</list>
+	<section name="org.eclipse.ui.texteditor.FindReplaceDialog">
+		<item key="selection" value="&#x09;&#x09;&#x09;actualizarClientes();"/>
+		<list key="findhistory">
+			<item value="&#x09;&#x09;&#x09;actualizarClientes();"/>
+			<item value="public static void consultar(int num) throws IOException {      "/>
+		</list>
+	</section>
+</section>

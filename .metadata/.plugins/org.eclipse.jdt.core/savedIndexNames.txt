@@ -1,0 +1,11 @@
+INDEX VERSION 1.134+C:\Users\valen\CFGS\2do\AD\calicchia_valentin_alessandra_AD02_Tarea\.metadata\.plugins\org.eclipse.jdt.core
+1655265342.index
+2047891786.index
+1865797976.index
+1288848795.index
+323511863.index
+394573087.index
+1354261913.index
+4077448782.index
+2479761549.index
+2137119947.index
